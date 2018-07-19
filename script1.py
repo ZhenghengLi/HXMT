@@ -5,6 +5,7 @@ import argparse
 import MySQLdb as mdb
 import csv
 from datetime import datetime, timedelta
+import pytz
 
 parser = argparse.ArgumentParser(description='description')
 parser.add_argument("obs_id_file", help = "CSV file of obs_id list")
@@ -35,7 +36,7 @@ def hxmt_met_to_utc_str(hxmt_met):
     gps_second = 1009411215.0 + hxmt_met
     return gps_to_utc_str(gps_second)
 
-now_datetime = datetime.now()
+now_datetime = datetime.now(pytz.utc)
 now_time_str = now_datetime.strftime('%m/%d/%Y %H:%M:%S')
 now_date_str = now_datetime.strftime('%Y%m%d')
 
