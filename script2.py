@@ -90,6 +90,16 @@ def read_plan_file(filename_xml):
     # return result
     return plan_dict
 
+def read_range_list(filename_txt):
+    range_list = []
+    for line in open(filename_txt, 'r'):
+        l = line.strip()
+        if l: range_list.append(l.split(' '))
+    return range_list
+
+
 # unit test
 # plan_dict = read_plan_file(infile)
 # pprint(plan_dict)
+# pprint(read_range_list(infile))
+
