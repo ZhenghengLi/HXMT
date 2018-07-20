@@ -10,13 +10,15 @@ from pprint import pprint
 infile = sys.argv[1]
 
 def read_plan_file(filename_xml):
+    # read xml file
     doc = None
     with codecs.open(infile, 'r', encoding = 'gb2312') as fin:
         content = fin.read().encode('utf-8')
         content = re.sub(r'encoding.*=.*["\']gb2312["\']', 'encoding="utf-8"', content)
         doc = ET.fromstring(content)
-    plan_dict = {}
+
     # parse xml data to a dict
+    plan_dict = {}
     plan_dict['plan_id'] = doc.find(u'短期观测计划编号').text
     plan_dict['plan_type'] = doc.find(u'计划类别').text
     plan_dict['plan_start_time'] = doc.find(u'开始时间').text
@@ -49,6 +51,12 @@ def read_plan_file(filename_xml):
         data_size['zone2'] = el.get(u'分区2')
         data_size['zone3'] = el.get(u'分区3')
         task_dict['data_size'] = data_size
+        el = task.find(u'姿态机动')
+        attitude_control = {}
+        attitude_control['control_method'] = el.get(u'控制方式')
+        attitude_control['path'] = el.get(u'路径')
+        task_dict['attitude_control'] = attitude_control
+        task_dict['note1'] = task.find(u'备注1').text
         if 'ASS' != task_dict['obs_mode']:
             el = task.find(u'目标')
             position = {}
@@ -68,12 +76,6 @@ def read_plan_file(filename_xml):
                 offaxis_pars['attitude'] = {'q0': el2.get('q0'),
                         'q1': el2.get('q1'), 'q2': el2.get('q2'), 'q3': el2.get('q3')}
                 task_dict['offaxis_pars'] = offaxis_pars
-        el = task.find(u'姿态机动')
-        attitude_control = {}
-        attitude_control['control_method'] = el.get(u'控制方式')
-        attitude_control['path'] = el.get(u'路径')
-        task_dict['attitude_control'] = attitude_control
-        task_dict['note1'] = task.find(u'备注1').text
         task_list.append(task_dict)
     plan_dict['task_list'] = task_list
 
@@ -88,5 +90,6 @@ def read_plan_file(filename_xml):
     # return result
     return plan_dict
 
-plan_dict = read_plan_file(infile)
-pprint(plan_dict)
+# unit test
+# plan_dict = read_plan_file(infile)
+# pprint(plan_dict)
