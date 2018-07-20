@@ -14,7 +14,7 @@ def read_plan_file(filename_xml):
     doc = None
     with codecs.open(infile, 'r', encoding = 'gb2312') as fin:
         content = fin.read().encode('utf-8')
-        content = re.sub(r'encoding.*=.*["\']gb2312["\']', 'encoding="utf-8"', content)
+        content = re.sub(r'encoding\s*=\s*["\']gb2312["\']', 'encoding="utf-8"', content)
         doc = ET.fromstring(content)
 
     # parse xml data to a dict
