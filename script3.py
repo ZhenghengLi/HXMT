@@ -6,11 +6,13 @@ OutputBufferPath = '/mnt/parastor/hxmtdata/work/DPGS_WORKSPACE/OutputBuffer'
 ArchivePath ='/hxmt/data/Mission/HXMT/Archive_20170616'
 LocalCatalogPath = '/mnt/parastor/hxmtdata/work/DPGS_WORKSPACE/LocalCatalog'
 RunLogPath = '/mnt/parastor/hxmtdata/work/DPGS_WORKSPACE/TaskRunner/Sub'
+ConfigPath = '/mnt/parastor/hxmtdata/work/DPGS_WORKSPACE/TaskConfig'
 # Constants End
 
 import os
 import re
 import argparse
+import shutil
 import MySQLdb as mdb
 from datetime import datetime, timedelta
 
@@ -29,7 +31,13 @@ def fetch_row(task_id, host, user, passwd, dbname):
         if con: con.close()
 
 def file_comp(file1, file2, file3):
-    return True
+    size1 = os.path.getsize(file1)
+    size2 = os.path.getsize(file2)
+    size3 = os.path.getsize(file3)
+    if size1 == size2 and size2 == size3:
+        return True
+    else:
+        return False
 
 def find_runlog(task_id):
     ref_all = re.compile(task_id, re.I)
@@ -54,6 +62,22 @@ def find_runlog(task_id):
         return (sh_fn, out_fn, err_fn)
     else:
         return None
+
+def find_config(task_id):
+    ref_conf = re.compile(task_id, re.I)
+    config_files = [x for x in ConfigPath if ref_conf.match(x)]
+    if len(config_files) == 1:
+        return config_files[0]
+    else:
+        return None
+
+def is_empty(filename):
+    content = ''
+    with open(filename, 'r') as fin: content = fin.read()
+    if len(content) == 0:
+        return True
+    else:
+        return False
 
 #### functions End   ####
 
@@ -108,12 +132,22 @@ for x in file_list:
         found_archived = False
         print 'not found file ' + archived_file
     if not found_local or not found_archived: continue
-    if file_compare(buffer_file, local_file, archived_file):
+    if file_comp(buffer_file, local_file, archived_file):
         runlog = find_runlog(task_id)
         if not runlog:
             print 'no runlog found'
             continue
-        # TODO do runlog file checking and moving work here
+        config_file = find_config(task_id)
+        if not config_file:
+            print 'no config found'
+            continue
+        sh_file, out_file, err_file = runlog
+        if is_empty(err_file):
+            print 'good'
+            # TODO: move runlog and config files
+        else:
+            print 'bad'
+            # TODO: move runlog and config files
     else:
         print 'differences among the three files found'
         continue
