@@ -6,60 +6,80 @@ import MySQLdb as mdb
 import csv
 from datetime import datetime, timedelta
 import pytz
+from utils import *
 
 parser = argparse.ArgumentParser(description='description')
-parser.add_argument("obs_id_file", help = "CSV file of obs_id list")
-parser.add_argument("-w", dest = "owner_file", help = "CSV file of owner list")
+parser.add_argument("--taskid", dest = "taskid", help = "TaskID")
+parser.add_argument("--dataid", dest = "dataid", help = "DataID")
+parser.add_argument("--bgnutc", dest = "bgnutc", help = "Begin of UTC time with format YYYY-mm-ddTHH:MM:SS")
+parser.add_argument("--endutc", dest = "endutc", help = "End of UTC time with format YYYY-mm-ddTHH:MM:SS")
 parser.add_argument("-o", dest = "outfile", help = "CSV file of output", default = "output.csv")
 parser.add_argument("--host", dest = "mysql_host", help = "mysql_host", default = "localhost")
 parser.add_argument("--user", dest = "mysql_user", help = "mysql_user", default = "hxmt_user")
 parser.add_argument("--passwd", dest = "mysql_passwd", help = "mysql_passwd", default = "hxmt_passwd")
-parser.add_argument("--dbname", dest = "mysql_dbname", help = "mysql_dbname", default = "hxmt")
 args = parser.parse_args()
 
-def leap_second_gps(gps_time):
-    if gps_time < 1025136015:
-        return 15
-    elif gps_time < 1119744016:
-        return 16
-    elif gps_time < 1167264017:
-        return 17
-    else:
-        return 18
 
-def leap_second_utc(utc_time):
-    if utc_time < 1025136015 - 15:
-        return 15
-    elif utc_time < 1119744016 - 16:
-        return 16
-    elif utc_time < 1167264017 - 17:
-        return 17
-    else:
-        return 18
+bgnutc_dt, endutc_dt = None, None
+if args.bgnutc and args.endutc:
+    bgnutc_dt = datetime.strptime(args.bgnutc, '%Y-%m-%dT%H:%M:%S')
+    endutc_dt = datetime.strptime(args.endutc, '%Y-%m-%dT%H:%M:%S')
+    if endutc_dt < bgnutc_dt:
+        print "bad input utc time range"
+        exit(1)
+elif args.bgnutc and not args.endutc:
+    bgnutc_dt = datetime.strptime(args.bgnutc, '%Y-%m-%dT%H:%M:%S')
+    endutc_dt = bgnutc_dt + timedelta(days = 7)
+elif not args.bgnutc and args.endutc:
+    endutc_dt = datetime.strptime(args.endutc, '%Y-%m-%dT%H:%M:%S')
+    bgnutc_dt = endutc_dt - timedelta(days = 7)
+else:
+    endutc_dt = datetime.now()
+    bgnutc_dt = endutc_dt - timedelta(days = 7)
 
-def gps_to_utc_str(gps_second):
-    utc_second = gps_second - leap_second_gps(gps_second)
-    utc_datetime = datetime(1980, 1, 6, 0, 0, 0) + timedelta(seconds = utc_second);
-    return utc_datetime.strftime('%Y-%m-%dT%H:%M:%S')
+bgnutc_met = utc_dt_to_hxmt_met(bgnutc_dt)
+endutc_met = utc_dt_to_hxmt_met(endutc_dt)
 
-def utc_str_to_gps(utc_str):
-    utc_datetime = datetime.strptime(utc_str, '%Y-%m-%dT%H:%M:%S')
-    utc_seconds = (utc_datetime - datetime(1980, 1, 6, 0, 0, 0)).total_seconds()
-    gps_seconds = utc_seconds + leap_second_utc(utc_seconds)
-    return gps_seconds
+where_clause = ''
+if args.taskid:
+    where_clause = 'task_id = "%s"' % args.taskid
+else:
+    where_clause = 'time_start > %d and time_end < %d' % (bgnutc_met, endutc_met)
+    if args.dataid:
+        where_clause += ' and data_id = %s' % args.dataid
 
-def hxmt_met_to_utc_str(hxmt_met):
-    gps_second = 1009411215.0 + hxmt_met
-    return gps_to_utc_str(gps_second)
+print where_clause
 
-def utc_str_to_hxmt_met(utc_str):
-    gps_time = utc_str_to_gps(utc_str)
-    return gps_time - 1009411215.0
+def fetch_task_info_list(where_c):
+    try:
+        con = mdb.connect(args.mysql_host, args.mysql_user, args.mysql_passwd, 'hhds')
+        cur = con.cursor(mdb.cursors.DictCursor)
+        cur.execute('select task_id, data_id, time_start, time_end, finished_status from task_info_list where ' + where_c)
+        return cur.fetchall()
+    except mdb.Error, e:
+        print "MySQL Error %d: %s" % (e.args[0],e.args[1])
+        exit(1)
+    finally:
+        if con: con.close()
 
-utc_str = hxmt_met_to_utc_str(210649061)
-hxmt_met = utc_str_to_hxmt_met(utc_str)
+def fetch_input_file_ids(taskid):
+    try:
+        con = mdb.connect(args.mysql_host, args.mysql_user, args.mysql_passwd, 'hhds')
+        cur = con.cursor(mdb.cursors.DictCursor)
+        cur.execute('select input_file_id from task_input_list where task_id = "%s"' % taskid)
+        rows = cur.fetchall()
+        if not rows:
+            print "no row found for task_id %s from task_input_list" % taskid
+            exit(1)
+        if len(rows) > 1:
+            print "multiple rows found for task_id %s from task_input_list" % taskid
+            exit(1)
+        return rows[0]['input_file_id'].split(',')
+    except mdb.Error, e:
+        print "MySQL Error %d: %s" % (e.args[0],e.args[1])
+        exit(1)
+    finally:
+        if con: con.close()
 
-print 210649061
-print utc_str
-print hxmt_met
+print fetch_input_file_ids(args.taskid)
 
